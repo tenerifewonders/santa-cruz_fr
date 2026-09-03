@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audioguide Santa Cruz de Tenerife</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#121212">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body { margin: 0; font-family: sans-serif; padding-bottom: 60px; }
+    #map { height: 50vh; width: 100%; }
+    #audio-list { padding: 15px; list-style: none; margin: 0; }
+    #audio-list li { padding: 12px; border-bottom: 1px solid #ddd; cursor: pointer; transition: all 0.2s ease; }
+    #audio-list li:hover { background: #f0f0f0; }
+    #audio-list li.sub-track {
+      padding-left: 30px;
+    }
+    #audio-list li.active-track {
+      background: #e3f2fd;
+      border-left: 5px solid #007bff;
+      font-weight: bold;
+      color: #0056b3;
+    }
+    #audio-player { width: 100%; position: fixed; bottom: 0; left: 0; z-index: 9999; }
+    .marker-active {
+      filter: hue-rotate(140deg) saturate(2.5) brightness(0.9) !important;
+      z-index: 1000 !important;
+    }
+  </style>
+
+<!-- ========================================== -->
+<!-- 🔒 SECURE LICENSE LOCK WITH MEMORY         -->
+<!-- ========================================== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  document.documentElement.style.display = 'none';
+
+  const supabaseUrl = 'https://xzymbvnljudyypdyuisf.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6eW1idm5sanVkeXlwZHl1aXNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjExMDYsImV4cCI6MjA5MjA5NzEwNn0.LRCkSCRF-0rDVAFkSvImWUNas21yXHZ29pQYUUZi8RY';
+  const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+  const GUIDE_ID = 'santa-cruz_fr';
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(window.location.search);
+    let license = params.get('license');
+
+    if (!license) {
+      license = localStorage.getItem(`tw_license_${GUIDE_ID}`);
+    }
+
+    if (!license) {
+      mostrarError("🔒 Accès restreint", "Vous avez besoin d'un code de licence valide pour accéder à cet audioguide.", true);
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from('licenses')
+      .select('id')
+      .eq('license_code', license)
+      .eq('guide', GUIDE_ID)
+      .single();
+
+    if (error || !data) {
+      localStorage.removeItem(`tw_license_${GUIDE_ID}`);
+      mostrarError("❌ Licence invalide", "Le code de licence fourni est invalide ou n'appartient pas à cet audioguide.", true);
+      return;
+    }
+
+    localStorage.setItem(`tw_license_${GUIDE_ID}`, license);
+    document.documentElement.style.display = '';
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+  });
+
+  function mostrarError(titulo, mensaje, mostrarBoton) {
+    const enlaceCompra = "https://tenerifewonders.github.io/"; 
+    document.documentElement.innerHTML = `
+      <div style="font-family: sans-serif; text-align: center; padding: 40px 20px; background-color: #f8f9fa; height: 100vh; box-sizing: border-box;">
+        <div style="background: white; max-width: 400px; margin: 0 auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <h2 style="color: #2c3e50; margin-top: 0;">${titulo}</h2>
+          <p style="color: #666; line-height: 1.5; margin-bottom: 25px;">${mensaje}</p>
+          ${mostrarBoton ? `<a href="${enlaceCompra}" style="background: #007bff; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">Acheter l'Audioguide</a>` : ''}
+        </div>
+      </div>
+    `;
+    document.documentElement.style.display = '';
+  }
+</script>
+<!-- ========================================== -->
+
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <p style="padding: 5px 15px; margin: 5px 0;"> 📍
+    <!-- Google Maps Official (Walking route connecting all stops in sequence) -->
+    <a href="https://www.google.com/maps/dir/?api=1&origin=28.4561009,-16.251352&destination=28.4679412,-16.2493033&waypoints=28.4554121,-16.2523846%7C28.4644615,-16.2490285%7C28.4649052,-16.250358%7C28.4676874,-16.2473624%7C28.4669857,-16.2467901%7C28.4676915,-16.2506229%7C28.4682518,-16.250331%7C28.4687517,-16.2528559%7C28.4720365,-16.2535446%7C28.470559,-16.2558131%7C28.4675177,-16.2554298%7C28.4646698,-16.2558632%7C28.4633506,-16.2518818%7C28.4639687,-16.2510159%7C28.4658898,-16.2508954&travelmode=walking" 
+       target="_blank">
+       Itinéraire Google Maps disponible
+    </a>
+    <span>(connexion données requise)</span>
+  </p>
+
+  <p style="padding: 5px 15px; margin: 5px 0;"> 📄
+    <a href="FR-SANTA-CRUZ.html" target="_blank">
+       Horaires d'ouverture et conseils pratiques
+    </a>
+  </p>
+
+  <div id="android-msg" style="display:none; padding: 10px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 5px; margin: 10px;">
+    ➕ <strong> Pour installer l'application sur Android et l'utiliser hors ligne : Cliquez sur le menu du navigateur (trois points) → Ajouter à l'écran d'accueil / Installer</strong>
+  </div>
+
+  <div id="ios-msg" style="display:none; padding: 10px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 5px; margin: 10px;">
+    ➕ <strong> Pour installer l'application sur votre iPhone et l'utiliser hors ligne : Partager → Sur l'écran d'accueil</strong>
+  </div>
+  
+  <ul id="audio-list">
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/1.mp3">1. Auditorio de Tenerife : La vague à l'horizon</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/2.mp3">2. Castillo de San Juan Bautista (Castillo Negro) : Sentinelle de lave</li>
+    
+    <li>3. Église de La Concepción & Calle de la Noria</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/3.1.mp3">3.1. Église de La Concepción : La naissance de la ville</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/3.2.mp3">3.2. Calle de la Noria : Le cœur historique de Santa Cruz</li>
+    
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/4.mp3">4. Plaza de España & Centre d'interprétation du Castillo de San Cristóbal</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/5.mp3">5. Plaza del Chicharro & Plaza del Príncipe</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/6.mp3">6. Temple maçonnique : Quartier général des symboles cachés</li>
+    
+    <li>7. Parc García Sanabria : Le jardin exotique de Santa Cruz</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.1.mp3">7.1. L'Horloge fleurie – L'entrée symbolique</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.2.mp3">7.2. La Fontaine "La Fecundidad" et la place centrale</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.3.mp3">7.3. La Promenade de la roseraie</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.4.mp3">7.4. L'Étang des nénuphars</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.5.mp3">7.5. Le Jardin de sculptures</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.6.mp3">7.6. Le Monument au Chat (Óscar Domínguez)</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.7.mp3">7.7. Les Arbres historiques</li>
+    <li class="sub-track" data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.8.mp3">7.8. Le Kiosque du parc</li>
+    
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/8.mp3">8. Plaza de los Patos : Écho de la franc-maçonnerie</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/9.mp3">9. Plaza Weyler : La traversée vers la ville moderne</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/10.mp3">10. Casa del Carnaval : Tradition et masques</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/11.mp3">11. Marché Nuestra Señora de África (La Recova) : Le souk atlantique</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/12.mp3">12. TEA (Tenerife Espacio de las Artes) : L'archive du temps</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/13.mp3">13. Teatro Guimerá : La première scène de la ville</li>
+    <li data-audio="https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/14.mp3">14. Église et Plaza San Francisco de Asís : La mémoire de Santa Cruz</li>
+  </ul>
+
+  <audio id="audio-player" controls controlsList="nodownload"></audio>
+
+  <script>
+    const map = L.map('map', {
+      attributionControl: false
+    }).setView([28.464021, -16.251327], 15); 
+
+    L.tileLayer('./tiles/{z}/{x}/{y}.png', {
+      minZoom: 11,
+      maxZoom: 18,
+      maxNativeZoom: 17,
+      tileSize: 256
+    }).addTo(map);
+
+    const markersByAudio = {};
+    const audioAliases = {
+      "https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.5.mp3":"https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.1.mp3",
+      "https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.7.mp3":"https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.1.mp3",
+      "https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.8.mp3":"https://xzymbvnljudyypdyuisf.supabase.co/storage/v1/object/public/santa-cruz_fr/7.1.mp3"
+    };
+
+    function resolveMarkerAudio(audioUrl) {
+      for (const [subUrl, parentUrl] of Object.entries(audioAliases)) {
+        if (parentUrl === audioUrl) {
+          return subUrl;
+        }
+      }
+      return audioUrl;
+    }
+
+    let activeMarker = null;
+
+    function activateTrack(audioUrl, triggerSource) {
+      const player = document.getElementById("audio-player");
+      
+      const silentStops = [];
+
+      if (!silentStops.includes(audioUrl)) {
+        if (player.src !== audioUrl) {
+          player.src = audioUrl;
+          player.play();
+        } else if (player.paused) {
+          player.play();
+        }
+      }
+
+      const items = document.querySelectorAll("#audio-list li");
+      items.forEach(li => {
+        if (li.getAttribute("data-audio") === audioUrl) {
+          li.classList.add("active-track");
+          if (triggerSource !== 'list') {
+            li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        } else {
+          li.classList.remove("active-track");
+        }
+      });
+
+      const marker = markersByAudio[audioAliases[audioUrl] || audioUrl];
+      if (marker) {
+        if (activeMarker && activeMarker._icon) {
+          activeMarker._icon.classList.remove("marker-active");
+        }
+
+        activeMarker = marker;
+        if (marker._icon) {
+          marker._icon.classList.add("marker-active");
+        }
+
+        if (triggerSource !== 'marker') {
+          marker.openPopup();
+          map.setView(marker.getLatLng(), map.getZoom() < 15 ? 15 : map.getZoom(), { animate: true });
+        }
+      }
+    }
+
+    fetch('./santa-cruz.geojson')
+      .then(res => res.json())
+      .then(data => {
+        L.geoJSON(data, {
+          onEachFeature: (feature, layer) => {
+            const audioUrl = feature.properties.audio;
+            const name = feature.properties.Name;
+
+            layer.bindPopup(name);
+
+            if (audioUrl) {
+              markersByAudio[audioUrl] = layer;
+            }
+
+            layer.on("click", () => {
+              activateTrack(resolveMarkerAudio(audioUrl), 'marker');
+            });
+          }
+        }).addTo(map);
+      });
+
+    const items = document.querySelectorAll("#audio-list li");
+    items.forEach(li => {
+      li.addEventListener("click", () => {
+        const url = li.getAttribute("data-audio");
+        if (url) {
+          activateTrack(url, 'list');
+        }
+      });
+    });
+
+    map.locate({ setView: false });
+    map.on('locationfound', e => {
+      L.circleMarker(e.latlng, {
+        radius: 8,
+        color: "#007bff",
+        fillColor: "#3fa0ff",
+        fillOpacity: 0.8
+      }).addTo(map);
+    });
+  </script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./service-worker.js");
+    }
+  </script>
+  <script>
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone) {
+      document.getElementById('ios-msg').style.display = 'block';
+    }
+    if (/android/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches) {
+      document.getElementById('android-msg').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
